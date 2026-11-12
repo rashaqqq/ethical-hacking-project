@@ -1,0 +1,17 @@
+[
+  {
+    "alert_id": "10038",
+    "name": "Content Security Policy Header Not Set",
+    "risk": "Low",
+    "confidence": "Medium",
+    "url": "http://127.0.0.1:3000/",
+    "method": "GET",
+    "parameter": "",
+    "description": "The response does not contain a Content-Security-Policy header.",
+    "evidence": "",
+    "solution": "Configure a suitable Content-Security-Policy header.",
+    "reference": "https://owasp.org/www-project-secure-headers/",
+    "cwe_id": "693"
+  }
+]
+
