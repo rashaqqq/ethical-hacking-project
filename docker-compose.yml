@@ -1,0 +1,13 @@
+services:
+  juice-shop:
+    image: bkimminich/juice-shop
+    ports: ["127.0.0.1:3000:3000"]
+  dvwa:
+    image: vulnerables/web-dvwa
+    ports: ["127.0.0.1:8081:80"]
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    network_mode: host
+    command: >
+      zap.sh -daemon -host 127.0.0.1 -port 8090
+      -config api.key=${ZAP_API_KEY}
