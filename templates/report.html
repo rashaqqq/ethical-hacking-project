@@ -1,0 +1,24 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>SecureScope Report - {{ target }}</title>
+<style>
+ body{font-family:system-ui,sans-serif;max-width:980px;margin:2rem auto;padding:0 1rem;color:#222}
+ table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:6px 8px;text-align:left;font-size:14px}
+ th{background:#f0f0f0} .card{border:1px solid #ddd;border-radius:8px;padding:12px;margin:14px 0}
+ .tag{display:inline-block;padding:2px 8px;border-radius:10px;background:#eee;font-size:12px;margin-right:4px}
+</style></head><body>
+<h1>SecureScope AI - Assessment Report</h1>
+<p><b>Target:</b> {{ target }} &nbsp; <b>Generated:</b> {{ ts }}</p>
+<p><b>Summary:</b> {% for k, v in counts.items() %}<span class="tag">{{ k }}: {{ v }}</span>{% endfor %}</p>
+<p><b>Audit log:</b> {{ audit_entries }} entries, hash chain {{ "VERIFIED" if audit_ok else "BROKEN" }}.</p>
+<p><i>Method: findings are detected by the scanner; the AI agent only assesses likelihood and risk using read-only
+tools; a human reviewer makes the final decision. Nothing here is a confirmed exploit unless a human states so.</i></p>
+<table><tr><th>ID</th><th>CWE</th><th>Severity</th><th>Score</th><th>Human</th></tr>
+{% for a in items %}<tr><td>{{ a.finding_id }}</td><td>CWE-{{ a.cwe_id }}</td><td>{{ a.severity }}</td>
+<td>{{ a.risk_score }}/10</td><td>{{ decisions[a.finding_id].decision if a.finding_id in decisions else "-" }}</td></tr>{% endfor %}</table>
+{% for a in items %}<div class="card"><h3>{{ a.finding_id }} - CWE-{{ a.cwe_id }} ({{ a.cwe_name }})</h3>
+<p><b>Severity:</b> {{ a.severity }} &nbsp; <b>Risk score:</b> {{ a.risk_score }}/10</p>
+<p><b>Summary:</b> {{ a.summary }}</p>
+<p><b>Remediation:</b> {{ a.remediation | join(", ") }}</p>
+{% if a.safe_verification %}<p><b>Suggested safe check:</b> {{ a.safe_verification }}</p>{% endif %}
+{% if a.finding_id in decisions %}<p><b>Reviewer decision:</b> {{ decisions[a.finding_id].decision }}
+{{ decisions[a.finding_id].note }}</p>{% endif %}</div>{% endfor %}
+</body></html>
