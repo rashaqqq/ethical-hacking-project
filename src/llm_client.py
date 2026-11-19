@@ -22,7 +22,7 @@ class GroqClient:
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.2,
-                max_tokens=400,
+                max_tokens=1200,
             )
             return resp.choices[0].message.content or ""
         except Exception as exc:
