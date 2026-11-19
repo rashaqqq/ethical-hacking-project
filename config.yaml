@@ -1,0 +1,23 @@
+scope:
+  allowed_schemes: [http]
+  allowed_targets:
+    - {host: "127.0.0.1", port: 3000, name: "Juice Shop"}
+    - {host: "127.0.0.1", port: 8081, name: "DVWA"}
+zap:
+  host: "127.0.0.1"
+  port: 8090
+  spider_timeout: 120
+  passive_timeout: 120
+  active_timeout: 180
+  use_ajax_spider: false
+llm:
+  max_findings: 15
+  max_steps: 5
+  min_interval_sec: 2.0
+paths:
+  audit: logs/audit.jsonl
+  raw_alerts: data/raw_alerts.json
+  findings: data/findings.json
+  state: data/state.json
+  cwe: data/cwe.json
+  reports: reports
