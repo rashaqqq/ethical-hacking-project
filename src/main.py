@@ -49,21 +49,45 @@ def cmd_scan(target: str, findings_file: str | None) -> int:
     return 0
 
 
+def cmd_verify_audit() -> int:
+    import json
+    prev = None
+    count = 0
+    try:
+        with open("logs/audit.jsonl", encoding="utf-8") as f:
+            for n, line in enumerate(f, 1):
+                rec = json.loads(line)
+                if prev is not None and rec.get("prev") != prev:
+                    print(f"BROKEN chain at line {n}")
+                    return 1
+                prev = rec.get("hash", prev)
+                count += 1
+    except FileNotFoundError:
+        print("No audit log found")
+        return 1
+    print(f"OK: {count} records, chain intact")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="SecureScope AI - Role B CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("check", help="Verify environment and core Role B files")
+    subparsers.add_parser("verify-audit", help="Verify audit log hash chain")
 
     scan_parser = subparsers.add_parser("scan", help="Run risk and CWE assessment pipeline")
     scan_parser.add_argument("--target", default="http://localhost:8080", help="Lab target URL/identifier")
     scan_parser.add_argument("--findings", default=None, help="Optional path to findings JSON file")
+    scan_parser.add_argument("--auto", action="store_true", help="Run non-interactively")
 
     args = parser.parse_args()
     if args.command == "check":
         return cmd_check()
     if args.command == "scan":
         return cmd_scan(target=args.target, findings_file=args.findings)
+    if args.command == "verify-audit":
+        return cmd_verify_audit()
     return 1
 
 
