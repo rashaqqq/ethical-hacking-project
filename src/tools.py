@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 CWE_REFERENCE: Dict[str, Tuple[str, str]] = {
     "sql": ("CWE-89", "Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')"),
@@ -10,9 +10,13 @@ CWE_REFERENCE: Dict[str, Tuple[str, str]] = {
 }
 
 
-def map_category_to_cwe(category: str, explicit_cwe: str | None = None) -> Tuple[str, str]:
-    if explicit_cwe:
-        return explicit_cwe.upper(), f"Mapped CWE ({explicit_cwe.upper()})"
+def map_category_to_cwe(category: str, explicit_cwe: Optional[str] = None) -> Tuple[str, str]:
+    if explicit_cwe is not None:
+        cleaned = str(explicit_cwe).strip()
+        if cleaned and cleaned not in ("-1", "None", "null", "0"):
+            formatted = cleaned.upper() if cleaned.upper().startswith("CWE-") else f"CWE-{cleaned}"
+            return formatted, f"Mapped CWE ({formatted})"
+
     key = (category or "general").strip().lower()
     for k, val in CWE_REFERENCE.items():
         if k in key:

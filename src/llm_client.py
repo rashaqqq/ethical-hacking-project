@@ -3,9 +3,9 @@ from typing import Optional
 
 
 class GroqClient:
-    def __init__(self, api_key: Optional[str] = None, model: str = "llama-3.3-70b-versatile"):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or os.getenv("GROQ_API_KEY", "").strip()
-        self.model = model
+        self.model = model or os.getenv("GROQ_MODEL", "llama-3.1-8b-instant").strip()
 
     def ping(self) -> str:
         if not self.api_key:
