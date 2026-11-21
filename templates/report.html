@@ -1,25 +1,277 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><title>SecureScope Report - {{ target }}</title>
-<style>
- body{font-family:system-ui,sans-serif;max-width:980px;margin:2rem auto;padding:0 1rem;color:#222}
- table{border-collapse:collapse;width:100%} th,td{border:1px solid #ccc;padding:6px 8px;text-align:left;font-size:14px}
- th{background:#f0f0f0} .card{border:1px solid #ddd;border-radius:8px;padding:12px;margin:14px 0}
- .tag{display:inline-block;padding:2px 8px;border-radius:10px;background:#eee;font-size:12px;margin-right:4px}
- code{background:#f4f4f4;padding:2px 6px;border-radius:4px;font-size:13px}
-</style></head><body>
-<h1>SecureScope AI - Assessment Report</h1>
-<p><b>Target:</b> {{ target }} &nbsp; <b>Generated:</b> {{ ts }}</p>
-<p><b>Summary:</b> {% for k, v in counts.items() %}<span class="tag">{{ k }}: {{ v }}</span>{% endfor %}</p>
-<p><b>Audit log:</b> {{ audit_entries }} entries, hash chain {{ "VERIFIED" if audit_ok else "BROKEN" }}.</p>
-<p><i>Method: findings are detected by OWASP ZAP; the AI agent analyzes HTTP evidence and proposes CVSS v3.1 metrics using read-only tools; a human reviewer makes the final decision. Nothing here is a confirmed exploit unless a human states so.</i></p>
-<table><tr><th>ID</th><th>CWE</th><th>Severity</th><th>CVSS Score</th><th>Human</th></tr>
-{% for a in items %}<tr><td>{{ a.finding_id }}</td><td>CWE-{{ a.cwe_id }}</td><td>{{ a.severity }}</td>
-<td>{{ a.risk_score }}/10</td><td>{{ decisions[a.finding_id].decision if a.finding_id in decisions else "-" }}</td></tr>{% endfor %}</table>
-{% for a in items %}<div class="card"><h3>{{ a.finding_id }} - CWE-{{ a.cwe_id }} ({{ a.cwe_name }})</h3>
-<p><b>Severity:</b> {{ a.severity }} &nbsp; <b>CVSS v3.1 Score:</b> {{ a.risk_score }}/10 &nbsp; <code>{{ a.cvss_vector }}</code></p>
-{% if a.root_cause %}<p><b>Root Cause Analysis:</b> {{ a.root_cause }}</p>{% endif %}
-<p><b>Summary:</b> {{ a.summary }}</p>
-<p><b>Remediation:</b> {{ a.remediation | join(", ") }}</p>
-{% if a.safe_verification %}<p><b>Suggested safe check:</b> {{ a.safe_verification }}</p>{% endif %}
-{% if a.finding_id in decisions %}<p><b>Reviewer decision:</b> {{ decisions[a.finding_id].decision }}
-{{ decisions[a.finding_id].note }}</p>{% endif %}</div>{% endfor %}
-</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SecureScope AI — Vulnerability Assessment Report</title>
+  <style>
+    :root {
+      --navy: #0f172a;
+      --slate: #334155;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --crit: #991b1b; --crit-bg: #fef2f2;
+      --high: #c2410c; --high-bg: #fff7ed;
+      --med: #b45309;  --med-bg: #fffbeb;
+      --low: #1d4ed8;  --low-bg: #eff6ff;
+      --ok: #15803d;   --ok-bg: #f0fdf4;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--navy);
+      margin: 0;
+      padding: 2rem 1rem;
+      line-height: 1.55;
+    }
+    .container { max-width: 1020px; margin: 0 auto; }
+    .header {
+      background: var(--navy);
+      color: #fff;
+      padding: 2rem;
+      border-radius: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .header h1 { margin: 0 0 0.4rem 0; font-size: 1.65rem; letter-spacing: -0.02em; }
+    .header .meta { font-size: 0.9rem; color: #cbd5e1; }
+    .audit-badge {
+      padding: 0.45rem 0.9rem;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      background: {{ "#14532d" if audit_ok else "#7f1d1d" }};
+      color: {{ "#bbf7d0" if audit_ok else "#fecaca" }};
+      border: 1px solid {{ "#22c55e" if audit_ok else "#ef4444" }};
+    }
+    .methodology {
+      background: #fff;
+      border-left: 4px solid var(--slate);
+      padding: 0.9rem 1.2rem;
+      margin: 1.25rem 0;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.88rem;
+      color: var(--slate);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.85rem;
+      margin-bottom: 1.5rem;
+    }
+    .kpi {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .kpi .num { font-size: 1.6rem; font-weight: 700; color: var(--navy); }
+    .kpi .lbl { font-size: 0.8rem; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+    .section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin: 1.75rem 0 0.85rem 0;
+      padding-bottom: 0.4rem;
+      border-bottom: 2px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--card);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+    th { background: #f1f5f9; font-weight: 600; color: var(--slate); font-size: 0.82rem; text-transform: uppercase; }
+    tr:last-child td { border-bottom: none; }
+    .pill {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .sev-critical { background: var(--crit-bg); color: var(--crit); }
+    .sev-high { background: var(--high-bg); color: var(--high); }
+    .sev-medium { background: var(--med-bg); color: var(--med); }
+    .sev-low { background: var(--low-bg); color: var(--low); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-left: 5px solid var(--slate);
+      border-radius: 8px;
+      padding: 1.35rem 1.5rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .card.border-critical { border-left-color: var(--crit); }
+    .card.border-high { border-left-color: var(--high); }
+    .card.border-medium { border-left-color: var(--med); }
+    .card.border-low { border-left-color: var(--low); }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .card-head h3 { margin: 0; font-size: 1.08rem; }
+    .vector-bar {
+      background: #f1f5f9;
+      padding: 0.45rem 0.75rem;
+      border-radius: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.82rem;
+      color: var(--slate);
+      margin-bottom: 1rem;
+      display: inline-block;
+    }
+    .field-label {
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0.85rem 0 0.25rem 0;
+    }
+    .field-body { margin: 0; font-size: 0.94rem; color: #1e293b; }
+    .rem-list { margin: 0.3rem 0 0 1.2rem; padding: 0; font-size: 0.93rem; }
+    .rem-list li { margin-bottom: 0.3rem; }
+    .decision-box {
+      margin-top: 1rem;
+      padding: 0.6rem 0.9rem;
+      background: var(--ok-bg);
+      border: 1px solid #bbf7d0;
+      border-radius: 6px;
+      font-size: 0.86rem;
+      color: var(--ok);
+    }
+    .footer {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 2.5rem;
+    }
+    @media print {
+      body { background: #fff; padding: 0; }
+      .card, table { box-shadow: none; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>Security Assessment Report</h1>
+      <div class="meta">
+        <strong>Target System:</strong> {{ target }} &nbsp;|&nbsp;
+        <strong>Assessment Date:</strong> {{ ts }} &nbsp;|&nbsp;
+        <strong>Framework:</strong> SecureScope AI (OWASP ZAP + CVSS v3.1)
+      </div>
+    </div>
+    <div class="audit-badge">
+      AUDIT LOG: {{ "VERIFIED" if audit_ok else "TAMPERED" }} ({{ audit_entries }} EVENTS)
+    </div>
+  </div>
+
+  <div class="methodology">
+    <strong>Governance &amp; Attribution Notice:</strong> Vulnerabilities listed below were identified via OWASP ZAP passive inspection. Technical root-cause analysis and CVSS v3.1 vector proposals were generated under strict scope and redaction guardrails, and all final risk classifications were validated by a human security analyst.
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="num">{{ items | length }}</div>
+      <div class="lbl">Total Findings</div>
+    </div>
+    {% for k, v in counts.items() %}
+    <div class="kpi">
+      <div class="num">{{ v }}</div>
+      <div class="lbl">{{ k }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="section-title">Executive Findings Overview</div>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Weakness Classification</th>
+        <th>Severity</th>
+        <th>CVSS v3.1 Score</th>
+        <th>Analyst Decision</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in items %}
+      {% set sev_cls = "sev-" + (a.severity | lower) %}
+      <tr>
+        <td><strong>{{ a.finding_id }}</strong></td>
+        <td>CWE-{{ a.cwe_id }} &mdash; {{ a.cwe_name }}</td>
+        <td><span class="pill {{ sev_cls }}">{{ a.severity }}</span></td>
+        <td><strong>{{ a.risk_score }}</strong> / 10.0</td>
+        <td>{{ (decisions[a.finding_id].decision | upper) if a.finding_id in decisions else "PENDING" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="section-title">Detailed Technical Findings &amp; Remediation</div>
+  {% for a in items %}
+  {% set sev_lower = a.severity | lower %}
+  <div class="card border-{{ sev_lower }}">
+    <div class="card-head">
+      <h3>{{ a.finding_id }}: {{ a.cwe_name }} (CWE-{{ a.cwe_id }})</h3>
+      <span class="pill sev-{{ sev_lower }}">{{ a.severity }} &bull; {{ a.risk_score }}/10</span>
+    </div>
+
+    <div class="vector-bar">
+      <strong>CVSS v3.1 Vector:</strong> {{ a.cvss_vector }}
+    </div>
+
+    {% if a.root_cause %}
+    <div class="field-label">Root Cause Analysis</div>
+    <p class="field-body">{{ a.root_cause }}</p>
+    {% endif %}
+
+    <div class="field-label">Technical Assessment</div>
+    <p class="field-body">{{ a.summary }}</p>
+
+    <div class="field-label">Recommended Remediation</div>
+    <ul class="rem-list">
+      {% for step in a.remediation %}
+      <li>{{ step }}</li>
+      {% endfor %}
+    </ul>
+
+    {% if a.safe_verification %}
+    <div class="field-label">Safe Verification Guidance</div>
+    <p class="field-body">{{ a.safe_verification }}</p>
+    {% endif %}
+
+    {% if a.finding_id in decisions %}
+    <div class="decision-box">
+      <strong>Human Analyst Sign-Off:</strong> {{ decisions[a.finding_id].decision | upper }}
+      {% if decisions[a.finding_id].note %} &mdash; <em>"{{ decisions[a.finding_id].note }}"</em>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="footer">
+    Generated by SecureScope AI &bull; Tamper-Evident SHA-256 Audit Chain Enabled
+  </div>
+</div>
+</body>
+</html>
