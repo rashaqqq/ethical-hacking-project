@@ -23,6 +23,8 @@ class RiskAssessment:
     summary: str
     remediation: List[str] = field(default_factory=list)
     safe_verification: str = ""
+    cvss_vector: str = "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N"
+    root_cause: str = ""
 
 
 @dataclass

@@ -15,16 +15,19 @@ except ImportError:
     pass
 
 from rich.console import Console
+from rich.panel import Panel
 from rich.prompt import Prompt
+from rich.table import Table
 
 from agent import SecurityAssessmentAgent
 from audit import AuditLog
 from models import Finding
 from policy import PolicyEngine
 from report import build_report
-from review_cli import Decision, _show
+from review_cli import Decision
 from sanitizer import sanitize_finding
 from scope import ScopeGuard, ScopeViolation
+from zap_client import ZapClient
 
 console = Console()
 
@@ -59,7 +62,7 @@ def load(path, limit):
         if a.get("parameter"):
             parts.append(f"param={a['parameter']}")
         if a.get("evidence"):
-            parts.append(a["evidence"])
+            parts.append(f"evidence={a['evidence']}")
         parts.append((a.get("description") or "")[:300])
         cwe = str(a.get("cwe_id") or "")
         out.append(Finding(
@@ -73,9 +76,23 @@ def load(path, limit):
     return out
 
 
+def show_cvss_panel(i, n, a):
+    t = Table.grid(padding=(0, 2))
+    t.add_row("CWE:", f"CWE-{a.cwe_id} ({a.cwe_name})")
+    t.add_row("CVSS v3.1:", f"[bold]{a.risk_score}/10 ({a.severity})[/bold]  [{a.cvss_vector}]")
+    if getattr(a, "root_cause", ""):
+        t.add_row("Root Cause:", a.root_cause)
+    t.add_row("Assessment:", a.summary)
+    t.add_row("Remediation:", "; ".join(a.remediation[:2]))
+    console.print(Panel(t, title=f"Finding {i}/{n} - {a.finding_id}"))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--findings", default="data/findings.json")
+    ap.add_argument("--target", default="http://127.0.0.1:3000", help="Target URL for live ZAP scan")
+    ap.add_argument("--live", action="store_true", help="Run live OWASP ZAP scan before analysis")
+    ap.add_argument("--zap-url", default="http://127.0.0.1:8090")
     ap.add_argument("--name", default="Juice Shop")
     ap.add_argument("--max", type=int, default=10)
     ap.add_argument("--auto", action="store_true", help="approve all without asking")
@@ -84,7 +101,13 @@ def main():
     audit = AuditLog("logs/audit.jsonl")
     scope = ScopeGuard.from_config("config.yaml", audit=audit)
     policy = PolicyEngine(scope, audit)
-    audit.log("pipeline_start", findings_file=args.findings)
+    audit.log("pipeline_start", mode="live" if args.live else "saved", target=args.target)
+
+    if args.live:
+        console.print(f"[cyan]Starting live OWASP ZAP scan on {args.target}...[/cyan]")
+        zap = ZapClient(policy, audit, zap_url=args.zap_url)
+        zap.passive_scan(args.target)
+        args.findings = "data/findings.json"
 
     kept = []
     for f in load(args.findings, args.max):
@@ -110,9 +133,10 @@ def main():
         a.cwe_id = str(a.cwe_id).replace("CWE-", "")
         a.cwe_name = CWE_NAMES.get(a.cwe_id, a.cwe_name)
         a.summary = a.summary.replace(f"({old_name})", f"({a.cwe_name})").replace("CWE-CWE-", "CWE-")
-        s = sol.get(title.get(a.finding_id, ""), "")
-        if s:
-            a.remediation = [s]
+        if not a.remediation:
+            s = sol.get(title.get(a.finding_id, ""), "")
+            if s:
+                a.remediation = [s]
 
     decisions = {}
     n = len(report.assessments)
@@ -120,7 +144,7 @@ def main():
         if args.auto:
             d = Decision(finding_id=a.finding_id, decision="approve", note="auto")
         else:
-            _show(i, n, a)
+            show_cvss_panel(i, n, a)
             c = Prompt.ask("\\[a]pprove / \\[r]eject / \\[m]odify", choices=["a", "r", "m"], default="a")
             d = Decision(finding_id=a.finding_id,
                          decision={"a": "approve", "r": "reject", "m": "modify"}[c])
