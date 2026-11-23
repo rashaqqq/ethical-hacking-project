@@ -165,6 +165,15 @@ def main():
             continue
         if user_msg.lower() in ("exit", "quit", "خروج"):
             break
+        if any(k in user_msg.lower() for k in ("open report", "open the report", "open th report", "افتح التقرير")):
+            import glob, subprocess
+            htmls = sorted(glob.glob("reports/report_*.html"))
+            if htmls:
+                subprocess.Popen(["xdg-open", htmls[-1]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                console.print(f"\n[bold magenta]SecureScope AI:[/bold magenta] Opening [cyan]{htmls[-1]}[/cyan] in your browser...")
+            else:
+                console.print("\n[bold magenta]SecureScope AI:[/bold magenta] No report generated yet. Run a scan first!")
+            continue
 
         raw = llm.analyze_text(f"{ROUTER_PROMPT}\nLast Scan Context:\n{last_context}\nUser Message: {user_msg}")
         m = re.search(r"\{.*\}", raw or "", re.S)
