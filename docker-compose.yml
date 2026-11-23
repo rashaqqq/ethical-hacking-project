@@ -10,4 +10,4 @@ services:
     network_mode: host
     command: >
       zap.sh -daemon -host 127.0.0.1 -port 8090
-      -config api.key=${ZAP_API_KEY}
+      -config api.disablekey=true -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true

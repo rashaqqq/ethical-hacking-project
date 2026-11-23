@@ -24,7 +24,7 @@ def main():
         table.add_row(
             str(idx),
             rec.get("event", ""),
-            str(rec.get("prev_hash", ""))[:16] + "...",
+            str(rec.get("prev", ""))[:16] + "...",
             str(rec.get("hash", ""))[:16] + "...",
         )
     console.print(table)
