@@ -34,8 +34,14 @@ class ZapClient:
             resp = requests.get(current, allow_redirects=False, timeout=10)
             if resp.status_code in (301, 302, 303, 307, 308) and "Location" in resp.headers:
                 nxt = urljoin(current, resp.headers["Location"])
-                self.policy.check_network(nxt)
-                self.audit.log("redirect_allowed", frm=current, to=nxt)
+                try:
+                    self.policy.check_network(nxt)
+                except ScopeViolation as e:
+                    if self.audit:
+                        self.audit.log("redirect_blocked", frm=current, to=nxt, reason=str(e))
+                    break
+                if self.audit:
+                    self.audit.log("redirect_allowed", frm=current, to=nxt)
                 current = nxt
             else:
                 break
