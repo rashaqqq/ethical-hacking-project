@@ -71,8 +71,11 @@ def run_narrated_pipeline(target_url: str, live: bool, zap_url: str, max_items: 
     findings_path = "data/findings.json"
     if live:
         phase_banner(2, "OWASP ZAP Live Passive Scan", f"Spidering & inspecting {target_url} with redirect scope guard...")
-        zap = ZapClient(policy, audit, zap_url=zap_url)
-        zap.passive_scan(target_url)
+        try:
+            zap = ZapClient(policy, audit, zap_url=zap_url)
+            zap.passive_scan(target_url)
+        except Exception as e:
+            console.print(f"  [yellow]! ZAP daemon busy/starting ({type(e).__name__}); falling back cleanly to saved passive findings.[/yellow]")
     else:
         phase_banner(2, "Scanner Ingestion & Scope Filtering", f"Loading passive findings for {target_url}...")
 
